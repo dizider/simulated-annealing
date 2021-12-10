@@ -4,21 +4,24 @@ import Parsers.KnapsackParser
 import SimulatedAnnealing._
 
 import scala.io.Source
+import scala.language.implicitConversions
 
 class App {
 }
 
 object Main {
 
-  def equilibrium(number: Double): Boolean = {
+//  lazy val temperature =
+
+  implicit val equilibrium: Double => Boolean = (number: Double) => {
     number > 50
   }
 
-  def cool(temperature: Temperature): Temperature = {
-    Temperature(temperature.value * 0.995)
+  implicit val cool: Temperature => Temperature = (temperature: Temperature) => {
+    temperature * 0.995
   }
 
-  def frozen(temperature: Temperature): Boolean = {
+  implicit val frozen: Temperature => Boolean = (temperature: Temperature) => {
     temperature.value < 4.7
   }
 
@@ -27,14 +30,9 @@ object Main {
     val knapsacks = new KnapsackParser(Source.fromFile(array(0))).parse()
 
     knapsacks.foreach { knapsack =>
-      val op: Operators[KnapsackState] = Operators(List(KnapsackOperator()))
-      val sa: SimulatedAnnealing[KnapsackState] = new SimulatedAnnealing(op)
-
-      val initState: KnapsackState = KnapsackState(knapsack.items, knapsack)
-      println(s"${initState.weight} $initState")
-
-      val result = sa.solve(Temperature(47), initState, initState)(frozen)(equilibrium)(cool)
-      println(s"${knapsack.id} ${result.cost} ${result.weight} $result")
+      val initState: KnapsackState = KnapsackState(knapsack.items, knapsack).shuffle
+      val solution = KnapsackSolver().solve(Temperature(47), initState, initState)
+      println(s"${solution.knapsack.id} ${solution.cost} $solution")
     }
   }
 }

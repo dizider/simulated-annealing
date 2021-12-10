@@ -1,44 +1,30 @@
 package cz.fit.cvut
 package SimulatedAnnealing
 
+import cz.fit.cvut.Operators.{KnapsackOperator, Operators}
+
 import scala.annotation.tailrec
+import scala.util.Random
 
 case class Knapsack(id: Int, noItems: Int, size: Int, items: List[KnapsackItem])
-
-class KnapsackOperator extends Operator[KnapsackState] {
-  def switchNthItem(position: Int, state: KnapsackState): KnapsackState = {
-    var a = state.items
-    val changeValue = if (a(position).isPresented) -a(position).weight else a(position).weight
-    if ((state.weight + changeValue) > state.knapsack.size) {
-      state
-    } else {
-      a = a.updated(position, KnapsackItem(a(position).cost, a(position).weight, !a(position).isPresented))
-      KnapsackState(a, state.knapsack)
-    }
-  }
-
-  override def to(state: KnapsackState): List[KnapsackState] = {
-    @tailrec
-    def addNeighbor(position: Int, neighbors: Set[KnapsackState])(size: Int): List[KnapsackState] = {
-      if (position >= size) neighbors.toList
-      else addNeighbor(position + 1, neighbors + switchNthItem(position, state))(size)
-    }
-
-    addNeighbor(0, Set())(state.items.size)
-  }
-}
-
-object KnapsackOperator {
-  def apply(): KnapsackOperator = {
-    new KnapsackOperator
-  }
-}
 
 case class KnapsackItem(cost: Int, weight: Int, isPresented: Boolean) extends Item
 
 case class KnapsackState(items: List[KnapsackItem], knapsack: Knapsack) extends State[KnapsackState] {
   lazy val cost: Int = items.foldRight(0)((item, sum) => if (item.isPresented) sum + item.cost else sum)
   lazy val weight: Int = items.foldRight(0)((item, sum) => if (item.isPresented) sum + item.weight else sum)
+
+  private def randomIsPresented: Boolean = {
+    if (Random.nextDouble() < 0.5) false
+    else true
+  }
+
+  @tailrec
+  final def shuffle: KnapsackState = {
+    val random = KnapsackState(this.items.map(it => KnapsackItem(it.cost, it.weight, randomIsPresented)), this.knapsack)
+    if (random.weight > this.knapsack.size) shuffle
+    else random
+  }
 
   override def betterThan(that: KnapsackState): Boolean =
     if (this.cost == that.cost) this.weight <= that.weight else this.cost > that.cost
@@ -57,4 +43,10 @@ case class KnapsackState(items: List[KnapsackItem], knapsack: Knapsack) extends 
   override def toString: String = {
     commaSeparated(items.map(it => if (it.isPresented) "1" else "0"), new StringBuilder)
   }
+}
+
+class KnapsackSolver extends SimulatedAnnealing[KnapsackState](Operators(List(KnapsackOperator())))
+
+object KnapsackSolver {
+  def apply(): KnapsackSolver = new KnapsackSolver()
 }
