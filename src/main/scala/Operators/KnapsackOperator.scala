@@ -13,7 +13,7 @@ class KnapsackOperator extends Operator[KnapsackState] {
       state
     } else {
       a = a.updated(position, KnapsackItem(a(position).cost, a(position).weight, !a(position).isPresented))
-      KnapsackState(a, state.knapsack)
+      KnapsackState(a, state.knapsack, state.randomStrategyFactory)
     }
   }
 

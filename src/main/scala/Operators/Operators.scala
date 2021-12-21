@@ -10,7 +10,7 @@ trait Operator[S <: State[S]] {
 }
 
 case class Operators[S <: State[S]](ops: List[Operator[S]]) {
-  private val randomGenerator = Random
+  private val randomGenerator = TimeBasedRandom
 
-  def random: Operator[S] = ops(randomGenerator.between(0, ops.size))
+  def random: Operator[S] = ops(randomGenerator.intInRange(0, ops.size))
 }
