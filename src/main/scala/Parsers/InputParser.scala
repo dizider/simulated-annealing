@@ -1,10 +1,12 @@
 package cz.fit.cvut
 package Parsers
 
+import monix.reactive.Observable
+
 import scala.io.Source
 
 trait InputParser[+A] {
   val source: Source
 
-  def parse(): List[A]
+  def parse(): Observable[A]
 }
