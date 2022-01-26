@@ -3,8 +3,13 @@ package SimulatedAnnealing
 
 import Operators._
 
-import java.io.{File, FileWriter}
+import cats.effect.Concurrent
+import cats.implicits._
+import cz.fit.cvut.Writers.OutputWriter
+
+import java.io.FileWriter
 import scala.annotation.tailrec
+import scala.language.implicitConversions
 
 trait NestedState[+A]
 
@@ -34,52 +39,61 @@ case class Temperature(value: Double) {
   }
 }
 
-class SimulatedAnnealing[A <: State[A]](val operators: Operators[A], val randomStrategyFactory: RandomStrategyFactory)(implicit config: Config) {
+case class StateOfComputation[A <: State[A]](temperature: Temperature, state: A, best: A, iteration: Int = 0, counter: Int)
 
-  type StateBest = (A, A) // actState, bestState
+class SimulatedAnnealing[F[_], A <: State[A]](val operators: Operators[A], val randomStrategyFactory: RandomStrategyFactory, writer: Option[OutputWriter[F]])(implicit config: Config, F: Concurrent[F]) {
+
+  type ActState = A
+  type BestState = A
+  type StatePair = (ActState, BestState) // actState, bestState
 
   private lazy val random: CustomRandom = randomStrategyFactory.get()
 
-  val source: Option[FileWriter] = config.partialSolutionOutput.map(f => new FileWriter(f.getPath))
+  //  val source: Option[FileWriter] = config.partialSolutionOutput.map(f => new FileWriter(f.getPath))
 
-  @tailrec
-  final def solve(temperature: Temperature, state: A, best: A, iteration: Int = 0)(implicit frozen: (Temperature => Boolean), equilibrium: Double, cool: (Temperature => Temperature)): A = {
+  def solve(temperature: Temperature, state: A, best: A, iteration: Int = 0)(implicit frozen: (Temperature => Boolean), equilibrium: Double, cool: (Temperature => Temperature)): F[A] = {
+    fs2.Stream.eval(innerSolver(temperature, state, best, iteration)).compile.lastOrError
+  }
+
+  private final def innerSolver(temperature: Temperature, state: A, best: A, iteration: Int = 0)(implicit frozen: (Temperature => Boolean), equilibrium: Double, cool: (Temperature => Temperature)): F[A] = {
     if (frozen(temperature)) {
-      source.foreach(_.close())
-      best
+      F.pure(best)
     }
     else {
-      val innerLoopRes = innerLoop(state, best)(iteration, temperature, equilibrium)
-      solve(cool(temperature), innerLoopRes._1, innerLoopRes._2, iteration + 1)(frozen, equilibrium, cool)
+      innerLoop(state, best)(iteration, temperature, if (temperature.value > 100) equilibrium else equilibrium).flatMap(innerLoopRes =>
+        innerSolver(cool(temperature), innerLoopRes._1, innerLoopRes._2, iteration + 1)(frozen, equilibrium, cool))
     }
   }
 
-  @tailrec
-  private def innerLoop(state: A, best: A, counter: Int = 0, accepted: Int = 0)(implicit iteration: Int, temperature: Temperature, equilibrium: Double): StateBest = {
-    source.foreach(_.write(s"${(iteration * equilibrium) + counter} ${state.valueOfOptimization()} ${best.valueOfOptimization()} ${state.isValid}\n"))
+  private def innerLoop(state: A, best: A, counter: Int = 0, accepted: Int = 0)(implicit iteration: Int, temperature: Temperature, equilibrium: Double): F[StatePair] = {
+    for {
+      _ <- writer.map { a => a.write(s"${iteration+counter} ${state.toString}") }.getOrElse(F.unit)
+      a <-
+        if (counter > equilibrium) {
+          F.pure((state, best))
+        } else {
+          val newState = tr(state, temperature)
+          if ((newState betterThan best) && newState.isValid) {
+            innerLoop(newState, newState, counter + 1)
+          } else {
+            innerLoop(newState, best, counter + 1)
+          }
+        }
+    } yield a
+
+    //    source.foreach(_.write(s"${(iteration * equilibrium) + counter} ${state.valueOfOptimization()} ${best.valueOfOptimization()} ${state.isValid}\n"))
     //    println(s"${(iteration * equilibrium) + counter} ${state.valueOfOptimization()} ${best.valueOfOptimization()} ${state.isValid}")
-    if (counter > equilibrium) {
-      (state, best)
-    } else {
-      val newState = tr(state, temperature)
-      val newAccepted = if (newState != state) accepted + 1 else accepted
-      if ((newState betterThan best) && newState.isValid) {
-        innerLoop(newState, newState, counter + 1, newAccepted)
-      } else {
-        innerLoop(newState, best, counter + 1, newAccepted)
-      }
-    }
   }
 
   private def tr(state: A, temperature: Temperature): A = {
     val possibleNewStates = operators.random to state
     // selects a new state at random from a set of neighbors
     val newState = possibleNewStates(random.intInRange(0, possibleNewStates.size))
+
     if (newState betterThan state) {
-      //      println(s"${newState.valueOfOptimization()} is better then ${state.valueOfOptimization()}")
-      newState // new state is better
+      newState
     } else {
-      val delta: Double = (newState howMuchWorstThan state)
+      val delta: Double = newState howMuchWorstThan state
       val y = math.exp(-delta / temperature.value) // accepts worse state with this probability
       if (random.nextDouble < y) {
         newState
