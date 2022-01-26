@@ -3,12 +3,20 @@ package SimulatedAnnealing
 
 import Operators.{KnapsackOperator, Operators}
 
+import cats.effect.{Concurrent, IO}
+import cz.fit.cvut.Writers.OutputWriter
+
 import java.io.File
 import scala.annotation.tailrec
 
-case class KnapsackSolverFactory()(implicit config: Config) {
-  def withTimeBasedRandom: KnapsackSolver = {
-    KnapsackSolver(TimeBasedRandomStrategy())
+case class KnapsackSolverFactory[F[_]](randomStrategyFactory: Ra
+  ndomStrategyFactory = TimeBasedRandomStrategy(), writer: Option[OutputWriter[F]] = None)(implicit config: Config, F: Concurrent[F]) {
+  def withOutputWriter(writer: OutputWriter[F]): KnapsackSolverFactory[F] = {
+    KnapsackSolverFactory(randomStrategyFactory, Some(writer))
+  }
+
+  def build: KnapsackSolver[F] = {
+    new KnapsackSolver[F](randomStrategyFactory, writer)
   }
 }
 
@@ -55,8 +63,8 @@ case class KnapsackState(items: List[KnapsackItem], knapsack: Knapsack, randomSt
   override def valueOfOptimization(): Double = cost
 }
 
-class KnapsackSolver(randomStrategyFactory: RandomStrategyFactory)(implicit config: Config) extends SimulatedAnnealing[KnapsackState](Operators(List(KnapsackOperator())), randomStrategyFactory)
+class KnapsackSolver[F[_]](randomStrategyFactory: RandomStrategyFactory, writer: Option[OutputWriter[F]])(implicit config: Config, F: Concurrent[F]) extends SimulatedAnnealing[F, KnapsackState](Operators(List(KnapsackOperator())), randomStrategyFactory, writer)
 
 object KnapsackSolver {
-  def apply(randomStrategyFactory: RandomStrategyFactory)(implicit config: Config): KnapsackSolver = new KnapsackSolver(randomStrategyFactory)
+  def apply[F[_]](randomStrategyFactory: RandomStrategyFactory, writer: Option[OutputWriter[F]])(implicit config: Config, F: Concurrent[F]): KnapsackSolver[F] = new KnapsackSolver[F](randomStrategyFactory, writer)
 }

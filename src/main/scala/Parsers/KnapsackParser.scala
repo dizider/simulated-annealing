@@ -3,8 +3,8 @@ package Parsers
 
 import SimulatedAnnealing.{Knapsack, KnapsackItem}
 
-import monix.eval.Task
-import monix.reactive.Observable
+import cats.effect.IO
+import fs2.Pipe
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Queue
@@ -12,13 +12,15 @@ import scala.io.Source
 
 class KnapsackParser(val source: Source) extends InputParser[Knapsack] {
 
-  override def parse(): Observable[Knapsack] = {
-    Observable.fromIterator(Task(source.getLines().map { line =>
-      val parsedLine = line.split(" ")
-      val partialKnapsack = Knapsack(parsedLine(0).toInt, parsedLine(1).toInt, parsedLine(2).toInt, _)
-      partialKnapsack(parseItems(parsedLine.drop(3)))
-    }))
-  }
+  override def parse(): Pipe[IO, String, Knapsack] = ???
+
+//  override def parse(): Observable[Knapsack] = {
+//    Observable.fromIterator(Task(source.getLines().map { line =>
+//      val parsedLine = line.split(" ")
+//      val partialKnapsack = Knapsack(parsedLine(0).toInt, parsedLine(1).toInt, parsedLine(2).toInt, _)
+//      partialKnapsack(parseItems(parsedLine.drop(3)))
+//    }))
+//  }
 
   @tailrec
   final def parseItems(rawItems: Array[String], acc: Queue[KnapsackItem] = Queue()): List[KnapsackItem] = {

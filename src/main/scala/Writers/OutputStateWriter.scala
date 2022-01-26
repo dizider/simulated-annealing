@@ -3,8 +3,8 @@ package Writers
 
 import SimulatedAnnealing.State
 
-import monix.eval.Task
+import monix.reactive.Consumer
 
 trait OutputStateWriter[S <: State[S]] {
-  def println(state: S): Task[Unit]
+  def println(state: S): Consumer[(S, _), Unit]
 }

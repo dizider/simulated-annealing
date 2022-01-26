@@ -3,8 +3,6 @@ package Operators
 
 import SimulatedAnnealing.{RawSATLiteral, SATState}
 
-import scala.annotation.tailrec
-
 class SATOperator(implicit config: Config) extends Operator[SATState] {
 
   private val random = TimeBasedRandom
@@ -13,13 +11,12 @@ class SATOperator(implicit config: Config) extends Operator[SATState] {
     var a = state.literalsValues
     a = a.updated(position, RawSATLiteral(a(position).cost, !a(position).isPresented))
 
-    val newClauses = state.clauses.map(clause => clause.updateLiterals(a))
-    val newState = SATState(newClauses, a, state.randomStrategyFactory)
+    val newState = SATState(state.clauses, a, state.randomStrategyFactory)
 
     if (newState.cntSatisfiableClauses >= state.cntSatisfiableClauses) {
       newState
     } else {
-      if (config.relaxationCoefficient * 100 >= random.intInRange(0, 100)) {
+      if (config.relaxationCoefficient >= random.nextDouble) {
         newState
       } else {
         state
@@ -28,13 +25,11 @@ class SATOperator(implicit config: Config) extends Operator[SATState] {
   }
 
   override def to(state: SATState): List[SATState] = {
-    @tailrec
-    def addNeighbor(position: Int, neighbors: Set[SATState])(size: Int): List[SATState] = {
-      if (position >= size) neighbors.toList
-      else addNeighbor(position + 1, neighbors + switchNthItem(position, state))(size)
+    var neighbours: Set[SATState] = Set.empty
+    for (i <- Seq.range(1, state.literalsValues.size)) {
+      neighbours = neighbours + switchNthItem(i, state)
     }
-
-    addNeighbor(1, Set(state))(state.literalsValues.size)
+    neighbours.toList
   }
 }
 

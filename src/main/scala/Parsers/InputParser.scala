@@ -1,12 +1,9 @@
 package cz.fit.cvut
 package Parsers
 
-import monix.reactive.Observable
-
-import scala.io.Source
+import cats.effect.IO
+import fs2.Pipe
 
 trait InputParser[+A] {
-  val source: Source
-
-  def parse(): Observable[A]
+  def parse(): Pipe[IO, String, A]
 }
